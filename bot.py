@@ -4,7 +4,8 @@ import logging
 from aiogram import Bot, Dispatcher
 from config_data.config import Config, load_config
 from database import database as db
-from handlers import start_handler, user_handler
+from keyboards.bot_meny import set_main_meny
+from handlers import start_handler, user_handler, other_handler, admin_handler
 
 
 # Функция реализации БД
@@ -12,6 +13,7 @@ async def start_bot(bot: Bot):
     await db.create_users()
     await db.create_admin()
     await db.create_rate_coins()
+    await db.create_old_message()
 
 
 # Функция конфигурирования и запуска бота
@@ -36,9 +38,14 @@ async def main():
               parse_mode='HTML')
     dp = Dispatcher()
 
+    # Настраиваем главное меню
+    await set_main_meny(bot)
+
     # Регистрируем роутеры в диспетчере
     dp.include_router(start_handler.router)
+    dp.include_router(admin_handler.router)
     dp.include_router(user_handler.router)
+    dp.include_router(other_handler.router)
 
     # Инициализация БД
     dp.startup.register(start_bot)

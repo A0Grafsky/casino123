@@ -6,6 +6,7 @@ from lexicon.lexicon_ru import LEXICON_RU
 # Функция для создания автоматической клавиатуры
 def create_inline_kb(width: int,
                      *args: str,
+                     last_btn: str | None = None,
                      **kwargs: str) -> InlineKeyboardMarkup:
     # Инициализируем билдер
     kb_builder = InlineKeyboardBuilder()
@@ -26,6 +27,11 @@ def create_inline_kb(width: int,
 
     # Распаковываем список с кнопками в билдер методом row с параметром widht
     kb_builder.row(*buttons, width=width)
-
+    # Добавляем в билдер последнюю кнопку, если она передана в функцию
+    if last_btn:
+        kb_builder.row(InlineKeyboardButton(
+            text=LEXICON_RU[last_btn] if last_btn in LEXICON_RU else last_btn,
+            callback_data=last_btn
+        ))
     # Возвращаем объект инлайн-клавиатуры
     return kb_builder.as_markup()
