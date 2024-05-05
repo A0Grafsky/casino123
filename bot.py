@@ -14,6 +14,7 @@ async def start_bot(bot: Bot):
     await db.create_admin()
     await db.create_rate_coins()
     await db.create_old_message()
+    await db.crete_quizzes()
 
 
 # Функция конфигурирования и запуска бота

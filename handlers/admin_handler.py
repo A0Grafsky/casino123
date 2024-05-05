@@ -68,6 +68,162 @@ class ActionLetterForAdmin(StatesGroup):
     add_text_old_message = State()
 
 
+# Состояние для квизов
+class ChangeOrGiveQuizzes(StatesGroup):
+    waiting_choice_quiz = State()
+    append_new_quiz = State()
+    append_question_one = State()
+    append_question_two = State()
+    append_question_three = State()
+    append_answer_one = State()
+    append_answer_two = State()
+    append_answer_three = State()
+    append_prize = State()
+
+
+# Обработка кнопки "Квизы"
+@router.callback_query(F.data == 'quizzes')
+async def quizzes_admin(callback_query: CallbackQuery):
+    await db.info_quizzes_for_quizzes_json()
+    await callback_query.message.edit_text(f'Пожалуйста, выберете нужную кнопку:\n\n'
+                                           f'- Показать квизы (json-файл со всеми квизами)\n\n'
+                                           f'- Редактировать (добавить, изменить, удалить квизы)\n\n'
+                                           f'- Отправить всем (каждому клиенту будет отправлен выбранный вами квиз)',
+                                           reply_markup=create_inline_kb(2, 'look_quizzes',
+                                                                         'change_quizzes', 'give_quizzes_all',
+                                                                         last_btn='back'))
+
+
+# Редактировать квизы
+@router.callback_query(F.data == 'change_quizzes')
+async def change_quizzes_for_admin(callback_query: CallbackQuery, state: FSMContext):
+    await state.set_state(ChangeOrGiveQuizzes.waiting_choice_quiz)
+    await callback_query.message.edit_text(f'Пожалуйста, выйберете нужную кнопку: \n\n'
+                                           f'- Добавить (Добавление нового квиза)\n\n'
+                                           f'- Изменить (Изменить сохраненные квизы)\n\n'
+                                           f'- Удалить (Удалить квизы)',
+                                           reply_markup=create_inline_kb(3, 'append_quiz',
+                                                                         'change_quiz', 'delete_quiz',
+                                                                         last_btn='back'))
+
+
+# Добавление нового квиза
+@router.callback_query(StateFilter(ChangeOrGiveQuizzes.waiting_choice_quiz), F.data == 'append_quiz')
+async def append_new_quiz(callback_query: CallbackQuery, state: FSMContext):
+    await state.set_state(ChangeOrGiveQuizzes.append_new_quiz)
+    await callback_query.message.edit_text(f'❗Пожалуйста, введите названия для квиза')
+
+
+# Обработка названия
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_new_quiz), F.text)
+async def append_new_name(message: Message, state: FSMContext):
+    await state.set_state(ChangeOrGiveQuizzes.append_question_one)
+    await state.update_data(name_quiz=message.text)
+    await message.answer(f'❗Пожалуйста, введите первый вопрос.\n\n'
+                         f'Важно, чтобы предложение заканчивалось "?"')
+
+
+# Обработка первого вопроса
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_question_one), F.text)
+async def append_new_question_one(message: Message, state: FSMContext):
+    if message.text.__contains__('?'):
+        await state.update_data(question_one=message.text)
+        await message.answer(f'❗Пожалуйста, введите ответ на первый вопрос.')
+        await state.set_state(ChangeOrGiveQuizzes.append_answer_one)
+    else:
+        await message.answer(f'Предложние не заканчивается на "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_answer_one), F.text)
+async def append_answer_one(message: Message, state: FSMContext):
+    await state.update_data(answer_one=message.text)
+    await state.set_state(ChangeOrGiveQuizzes.append_question_two)
+    await message.answer('❗Пожалуйста, введите второй вопрос.\n\n'
+                         f'Важно, чтобы предложение заканчивалось "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_question_two), F.text)
+async def append_new_question_one(message: Message, state: FSMContext):
+    if message.text.__contains__('?'):
+        await state.update_data(question_two=message.text)
+        await message.answer(f'❗Пожалуйста, введите ответ на второй вопрос.')
+        await state.set_state(ChangeOrGiveQuizzes.append_answer_two)
+    else:
+        await message.answer(f'Предложние не заканчивается на "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_answer_two), F.text)
+async def append_answer_one(message: Message, state: FSMContext):
+    await state.update_data(answer_two=message.text)
+    await state.set_state(ChangeOrGiveQuizzes.append_question_three)
+    await message.answer('❗Пожалуйста, введите третий вопрос.\n\n'
+                         f'Важно, чтобы предложение заканчивалось "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_question_three), F.text)
+async def append_new_question_one(message: Message, state: FSMContext):
+    if message.text.__contains__('?'):
+        await state.update_data(question_three=message.text)
+        await message.answer(f'❗Пожалуйста, введите ответ на третий вопрос.')
+        await state.set_state(ChangeOrGiveQuizzes.append_answer_three)
+    else:
+        await message.answer(f'Предложние не заканчивается на "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_answer_three), F.text)
+async def append_answer_one(message: Message, state: FSMContext):
+    await state.update_data(answer_three=message.text)
+    await state.set_state(ChangeOrGiveQuizzes.append_prize)
+    await message.answer('❗Пожалуйста, введите количество lucky монет, которое получить клиент.\n\n'
+                         f'Важно, чтобы это было либо целлое, либо неполное число.')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_prize), F.text)
+async def append_prize(message: Message, state: FSMContext):
+    if message.text == int or float:
+        await state.update_data(prize=message.text)
+        data = await state.get_data()
+        name = data['name_quiz']
+        question_one = data['question_one']
+        question_two = data['question_two']
+        question_three = data['question_three']
+        answer_one = data['answer_one']
+        answer_two = data['answer_two']
+        answer_three = data['answer_three']
+        prize = data['prize']
+        await db.append_new_quizzes(name, question_one, answer_one, question_two, answer_two, question_three,
+                                    answer_three, prize)
+        await state.clear()
+        await db.info_quizzes_for_quizzes_json()
+        await message.answer(f'Пожалуйста, выберете нужную кнопку:\n\n'
+                             f'- Показать квизы (json-файл со всеми квизами)\n\n'
+                             f'- Редактировать (добавить, изменить, удалить квизы)\n\n'
+                             f'- Отправить всем (каждому клиенту будет отправлен выбранный вами квиз)',
+                             reply_markup=create_inline_kb(2, 'look_quizzes',
+                                                           'change_quizzes', 'give_quizzes_all',
+                                                           last_btn='back'))
+    else:
+        await message.answer(f'Введите число или неполное число')
+
+
+# Показать все квизы
+@router.callback_query(F.data == 'look_quizzes')
+async def quizzes_admin(callback_query: CallbackQuery):
+    await callback_query.message.delete()
+    file = FSInputFile('exchange_look_quizzes.json')
+    message_text = "JSON-файл для Вас ❤️"
+    await callback_query.bot.send_document(chat_id=callback_query.from_user.id, document=file,
+                                           caption=message_text)
+    await db.info_quizzes_for_quizzes_json()
+    await callback_query.message.answer(f'❗Пожалуйста, выберете нужную кнопку:\n\n'
+                                        f'- Показать квизы (json-файл со всеми квизами)\n\n'
+                                        f'- Редактировать (добавить, изменить, удалить квизы)\n\n'
+                                        f'- Отправить всем (каждому клиенту будет отправлен выбранный вами квиз)',
+                                        reply_markup=create_inline_kb(2, 'look_quizzes',
+                                                                      'change_quizzes', 'give_quizzes_all',
+                                                                      last_btn='back'))
+
+
 # Обработка кнопки "Связь"
 @router.callback_query(F.data == 'message')
 async def letter_from_admin(callback_query: CallbackQuery):
@@ -332,8 +488,8 @@ async def give_old_message_for_all_users(callback_query: CallbackQuery, state: F
     await callback_query.message.answer(f'❗Сообщение было успешно отправлено')
     await state.clear()
     await callback_query.message.answer(LEXICON_RU['admin_start'],
-                                reply_markup=create_inline_kb(2, 'coin_rate', 'Merch_Showcase',
-                                                              'clients', 'quizzes', 'message'))
+                                        reply_markup=create_inline_kb(2, 'coin_rate', 'Merch_Showcase',
+                                                                      'clients', 'quizzes', 'message'))
 
 
 # Обработка своего текста для всех клиентов
@@ -1130,6 +1286,8 @@ async def back_user_handler(callback: CallbackQuery, state: FSMContext):
                                      reply_markup=create_inline_kb(2, 'take_coins',
                                                                    'add_coins', 'give_message', last_btn='back'))
     await state.update_data(user_id=user_id)
+
+
 @router.message(Command('scan'))
 async def scan_web_app(message: Message):
     if str(message.from_user.id) != str(config.tg_bot.admin_id):
@@ -1142,13 +1300,19 @@ async def scan_web_app(message: Message):
             url=web_app_url)
         )
         await message.answer("Нажмите кнопку для открытия сканера QR кодов:", reply_markup=builder.as_markup())
+
+
 class QRCodeCreate(StatesGroup):
     type_qr = State()
     wait_for_count_lucky = State()
+
+
 @router.callback_query(F.data == 'Сгенерировать QR', StateFilter(None))
 async def type_qr(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer('Выберите какой тип QR код вы хотите создать', reply_markup=create_inline_kb(2, 'Бонус', 'Квиз'))
+    await callback.message.answer('Выберите какой тип QR код вы хотите создать',
+                                  reply_markup=create_inline_kb(2, 'Бонус', 'Квиз'))
     await state.set_state(QRCodeCreate.type_qr)
+
 
 @router.callback_query(F.data.in_(['Бонус', 'Квиз']), QRCodeCreate.type_qr)
 async def bonus_or_quiz(callback: CallbackQuery, state: FSMContext):
@@ -1158,12 +1322,12 @@ async def bonus_or_quiz(callback: CallbackQuery, state: FSMContext):
     if callback.data == 'Квиз':
         pass
 
+
 @router.message(F.text, QRCodeCreate.wait_for_count_lucky)
 async def count_coins(message: Message, state: FSMContext):
-    await state.update_data(count = float(message.text))
+    await state.update_data(count=float(message.text))
     count = await state.get_data()
     await QRCode(message.from_user.id).qr_bonus(count['count'])
     await message.bot.send_photo(chat_id=message.from_user.id, photo=FSInputFile(f'qr_code_bonus.png'),
-                                          caption='Данный QR вам необходимо показать администратору, чтобы вам выдали фишки')
+                                 caption='Данный QR вам необходимо показать администратору, чтобы вам выдали фишки')
     os.remove(f'qr_code_bonus.png')
-

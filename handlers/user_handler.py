@@ -40,7 +40,7 @@ async def handle_coins(callback: CallbackQuery):
                                           f'<b>Chips</b>: {coins[0][3]}\n\n'
                                           f'Что желаете сделать?',
                                      reply_markup=create_inline_kb(2, 'trade', 'trade_admin',
-                                                                   'history', last_btn='back'))
+                                                                   last_btn='back'))
 
 
 # Обработка кнопки обмен, тут происходит логика обмена

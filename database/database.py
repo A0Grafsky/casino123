@@ -3,6 +3,47 @@ import json
 import pprint
 
 
+# Создание БД для квизов
+async def crete_quizzes():
+    async with aiosqlite.connect('userdata.db') as db:
+        await db.execute(
+            'CREATE TABLE IF NOT EXISTS quizzes (id_quizzes INTEGER PRIMARY KEY,'
+            'name_quiz TEXT, one_question TEXT, one_answer TEXT, two_question TEXT, two_answer TEXT,'
+            'three_question TEXT, three_answer TEXT, prize TEXT)'
+        )
+        await db.commit()
+
+
+# Добавление в БД новых квизов
+async def append_new_quizzes(name_quizzes, one_question, one_answer, two_question, two_answer,
+                             three_question, three_answer, prize):
+    async with aiosqlite.connect('userdata.db') as db:
+        await db.execute(
+            'INSERT OR IGNORE INTO quizzes (name_quiz, one_question, one_answer, two_question,'
+            'two_answer, three_question, three_answer, prize)'
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?)', (name_quizzes, one_question, one_answer,
+                                                two_question, two_answer, three_question, three_answer, prize)
+        )
+        await db.commit()
+
+
+# Запись БД в json-файл
+async def info_quizzes_for_quizzes_json():
+    async with aiosqlite.connect('userdata.db') as con:
+        cursor = await con.execute(f'SELECT * FROM quizzes')
+        data = await cursor.fetchall()
+    exchange_data_quizzes = []
+    for row in data:
+        exchange_data_quizzes.append({
+            row[1]: {row[2]: row[3], 
+                     row[4]: row[5],
+                     row[6]: row[7],
+                     "награда": row[8]},
+        })
+    with open('exchange_look_quizzes.json', 'w', encoding='utf-8') as json_file:
+        pprint.pprint(exchange_data_quizzes, json_file, indent=4)
+
+
 # Создание БД для отложенных сообщений
 async def create_old_message():
     async with aiosqlite.connect('userdata.db') as db:
@@ -25,21 +66,22 @@ async def info_from_old_message():
 async def info_old_message_for_name(name):
     async with aiosqlite.connect('userdata.db') as con:
         cursor = await con.execute(f'SELECT text_old_message FROM old_message WHERE name_old_message = ?',
-                                   (name, ))
+                                   (name,))
         row = await cursor.fetchone()
     return row
+
 
 # Обновляем значения отложенных сообщений
 async def change_old_message(name_old_message, new_name_old_message=None, text_old_message=None):
     async with aiosqlite.connect('userdata.db') as db:
         if new_name_old_message is not None:
             await db.execute('UPDATE old_message SET name_old_message = ? WHERE name_old_message = ?',
-                             (new_name_old_message, name_old_message),)
+                             (new_name_old_message, name_old_message), )
             await db.commit()
 
         if text_old_message is not None:
             await db.execute('UPDATE old_message SET text_old_message = ? WHERE name_old_message = ?',
-                             (text_old_message, name_old_message),)
+                             (text_old_message, name_old_message), )
             await db.commit()
 
 
@@ -63,7 +105,6 @@ async def info_from_old_message_in_json():
     async with aiosqlite.connect('userdata.db') as con:
         cursor = await con.execute(f'SELECT * FROM old_message')
         data = await cursor.fetchall()
-        await con.close()
     exchange_data_old = []
     for row in data:
         exchange_data_old.append({
