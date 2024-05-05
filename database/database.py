@@ -63,12 +63,12 @@ async def info_from_old_message_in_json():
     async with aiosqlite.connect('userdata.db') as con:
         cursor = await con.execute(f'SELECT * FROM old_message')
         data = await cursor.fetchall()
+        await con.close()
     exchange_data_old = []
     for row in data:
         exchange_data_old.append({
             row[1]: row[2]
         })
-    await con.commit()
     with open('exchange_data_old.json', 'w', encoding='utf-8') as json_file:
         pprint.pprint(exchange_data_old, json_file, indent=3)
 
@@ -228,7 +228,6 @@ async def info_user_for_user(current_time):
     async with aiosqlite.connect('userdata.db') as con:
         cursor = await con.execute(F'SELECT * FROM users')
         data = await cursor.fetchall()
-        await con.commit()
     exchange_data = []
     for row in data:
         exchange_data.append({

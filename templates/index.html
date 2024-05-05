@@ -56,8 +56,9 @@
         }
 
         var html5QrcodeScanner = new Html5QrcodeScanner(
-            "qr-reader", { fps: 10, qrbox: 250 });
+            "qr-reader", { fps: 10, qrbox: 250, verbose: false });
         html5QrcodeScanner.render(onScanSuccess);
+        document.getElementById("html5-qrcode-anchor-scan-type-change").style.display = "none";
     </script>
 </body>
 </html>
