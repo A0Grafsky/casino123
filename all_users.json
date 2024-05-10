@@ -1,0 +1,35 @@
+[
+    {
+        "id": 933148093,
+        "username": "MoeBcemogyuustvo",
+        "nickname": "lol",
+        "Lucky": 0.0,
+        "CashOnline": 0.0,
+        "OtherCoins": 0.0,
+        "Chips": 0.0,
+        "referral": "1252901622",
+        "current_time": "2024-05-06T23:41:09.913713"
+    },
+    {
+        "id": 1252901622,
+        "username": "ayaraa97",
+        "nickname": "Matvey1223",
+        "Lucky": 1.0,
+        "CashOnline": 14.99,
+        "OtherCoins": 0.0,
+        "Chips": 33.98,
+        "referral": null,
+        "current_time": "2024-05-06T23:41:09.913713"
+    },
+    {
+        "id": 5609130997,
+        "username": "dainty_worker",
+        "nickname": "123",
+        "Lucky": 0.0,
+        "CashOnline": 0.0,
+        "OtherCoins": 0.0,
+        "Chips": 0.0,
+        "referral": null,
+        "current_time": "2024-05-06T23:41:09.913713"
+    }
+]
