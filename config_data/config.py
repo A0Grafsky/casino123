@@ -7,6 +7,7 @@ from environs import Env
 class TgBot:
     token: str
     admin_id: int
+    ipv4: str
 
 
 @dataclass
@@ -23,5 +24,6 @@ def load_config(path: str | None = None) -> Config:
         tg_bot=TgBot(
             token=env("BOT_TOKEN"),
             admin_id=env("ADMIN_ID"),
+            ipv4 = env('IPV4')
         )
     )

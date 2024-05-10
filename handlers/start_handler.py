@@ -1,3 +1,5 @@
+import ast
+
 import aiosqlite
 from aiogram import F, Router
 from aiogram.filters import CommandStart, StateFilter
@@ -27,20 +29,21 @@ class UserNicknameState(StatesGroup):
 async def process_command_start(message: Message, state: FSMContext):
     await message.delete()
     await state.clear()
+    print(ast.literal_eval(config.tg_bot.admin_id))
     if len(message.text.split(' ')) == 1:
         if (message.from_user.id not in [i[0] for i in (await db.user_id_from_users())]
-                and not message.from_user.id == int(config.tg_bot.admin_id)):
+                and not message.from_user.id in ast.literal_eval(config.tg_bot.admin_id)):
             await message.answer(LEXICON_RU['load_nickname_for_user'])
             await state.set_state(UserNicknameState.waiting_nick)
         else:
-            if message.from_user.id == int(config.tg_bot.admin_id):
+            if message.from_user.id in ast.literal_eval(config.tg_bot.admin_id):
                 await state.clear()
                 await db.add_admin_to_admin_table(str(message.from_user.id), message.from_user.username,
                                                   10000, 10000, 10000)
                 # Тут будет копка + текст (админ)
                 await message.answer(LEXICON_RU['admin_start'],
                                      reply_markup=create_inline_kb(2, 'coin_rate', 'Merch_Showcase',
-                                                                   'clients', 'quizzes', 'message', 'Сгенерировать QR'))
+                                                                   'clients', 'quizzes', 'message', 'Сгенерировать QR', 'Посмотреть рефералов'))
             else:
                 # Тут будет кнопка + текст (юзер)
                 await state.clear()
@@ -51,7 +54,7 @@ async def process_command_start(message: Message, state: FSMContext):
                                                                    'referral', 'Статистика рефералов', 'Получить бонусы'))
     elif len(message.text.split(' ')) == 2:
         if (message.from_user.id not in [i[0] for i in (await db.user_id_from_users())]
-                and not message.from_user.id == int(config.tg_bot.admin_id)):
+                and not message.from_user.id in ast.literal_eval(config.tg_bot.admin_id)):
             await message.answer(LEXICON_RU['load_nickname_for_user'])
             await state.update_data(referral_id = message.text.split(' ')[1])
             await state.set_state(UserNicknameState.waiting_nick)
@@ -94,10 +97,10 @@ async def append_user_to_user_tabl(message: Message, state: FSMContext):
                 await message.answer('Вы зашли по собственной реферальной ссылке.')
         await message.answer(f'{nickname} - успешно зарегистрирован\n\n')
         await state.clear()
-        await message.answer(LEXICON_RU['start'] + f'\n\n❗<b>Ваш ник - {nickname}</b>\n\n❗'
-                             + f'❗<b>Ваш id - {message.from_user.id}</b>❗',
+        await message.answer(LEXICON_RU['start'] + f'\n\n❗<b>Ваш ник - {nickname[0]}</b>\n\n'
+                             + f'❗<b>Ваш id - {message.from_user.id}</b>',
                              reply_markup=create_inline_kb(2, 'coins', 'merch',
-                                                           'referral'))
+                                                           'referral', 'Статистика рефералов', 'Получить бонусы'))
     else:
         await message.answer(f'{nickname} - уже занят, попробуйте другой)')
 

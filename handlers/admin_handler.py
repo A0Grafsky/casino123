@@ -1,6 +1,10 @@
+import ast
+import asyncio
+import json
 import os
 
-from aiogram import F, Router
+import aiosqlite
+from aiogram import F, Router, Bot
 from aiogram.types import CallbackQuery, Message, FSInputFile, InlineKeyboardButton
 from aiogram.filters import StateFilter, Command
 from aiogram.fsm.context import FSMContext
@@ -68,6 +72,159 @@ class ActionLetterForAdmin(StatesGroup):
     add_text_old_message = State()
 
 
+# Состояние для квизов
+class ChangeOrGiveQuizzes(StatesGroup):
+    append_new_quiz = State()
+    append_question_one = State()
+    append_question_two = State()
+    append_question_three = State()
+    append_answer_one = State()
+    append_answer_two = State()
+    append_answer_three = State()
+    append_prize = State()
+
+
+# Обработка кнопки "Квизы"
+@router.callback_query(F.data == 'quizzes')
+async def quizzes_admin(callback_query: CallbackQuery):
+    await db.info_quizzes_for_quizzes_json()
+    await callback_query.message.edit_text(f'Пожалуйста, выберете нужную кнопку:\n\n'
+                                           f'- Показать квизы (json-файл со всеми квизами)\n\n'
+                                           f'- Редактировать (добавить, изменить, удалить квизы)\n\n'
+                                           f'- Отправить всем (каждому клиенту будет отправлен выбранный вами квиз)',
+                                           reply_markup=create_inline_kb(2, 'look_quizzes',
+                                                                         'change_quizzes', 'give_quizzes_all',
+                                                                         last_btn='back'))
+
+
+# Редактировать квизы
+@router.callback_query(F.data == 'change_quizzes')
+async def change_quizzes_for_admin(callback_query: CallbackQuery, state: FSMContext):
+    await state.set_state(ChangeOrGiveQuizzes.append_new_quiz)
+    await callback_query.message.edit_text(f'❗Пожалуйста, введите названия для квиза')
+
+
+# Обработка названия
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_new_quiz), F.text)
+async def append_new_name(message: Message, state: FSMContext):
+    await state.set_state(ChangeOrGiveQuizzes.append_question_one)
+    await state.update_data(name_quiz=message.text)
+    await message.answer(f'❗Пожалуйста, введите первый вопрос.\n\n'
+                         f'Важно, чтобы предложение заканчивалось "?"')
+
+
+# Обработка первого вопроса
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_question_one), F.text)
+async def append_new_question_one(message: Message, state: FSMContext):
+    if message.text.__contains__('?'):
+        await state.update_data(question_one=message.text)
+        await message.answer(f'❗Пожалуйста, введите ответ на первый вопрос.')
+        await state.set_state(ChangeOrGiveQuizzes.append_answer_one)
+    else:
+        await message.answer(f'Предложние не заканчивается на "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_answer_one), F.text)
+async def append_answer_one(message: Message, state: FSMContext):
+    await state.update_data(answer_one=message.text)
+    await state.set_state(ChangeOrGiveQuizzes.append_question_two)
+    await message.answer('❗Пожалуйста, введите второй вопрос.\n\n'
+                         f'Важно, чтобы предложение заканчивалось "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_question_two), F.text)
+async def append_new_question_one(message: Message, state: FSMContext):
+    if message.text.__contains__('?'):
+        await state.update_data(question_two=message.text)
+        await message.answer(f'❗Пожалуйста, введите ответ на второй вопрос.')
+        await state.set_state(ChangeOrGiveQuizzes.append_answer_two)
+    else:
+        await message.answer(f'Предложние не заканчивается на "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_answer_two), F.text)
+async def append_answer_one(message: Message, state: FSMContext):
+    await state.update_data(answer_two=message.text)
+    await state.set_state(ChangeOrGiveQuizzes.append_question_three)
+    await message.answer('❗Пожалуйста, введите третий вопрос.\n\n'
+                         f'Важно, чтобы предложение заканчивалось "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_question_three), F.text)
+async def append_new_question_one(message: Message, state: FSMContext):
+    if message.text.__contains__('?'):
+        await state.update_data(question_three=message.text)
+        await message.answer(f'❗Пожалуйста, введите ответ на третий вопрос.')
+        await state.set_state(ChangeOrGiveQuizzes.append_answer_three)
+    else:
+        await message.answer(f'Предложние не заканчивается на "?"')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_answer_three), F.text)
+async def append_answer_one(message: Message, state: FSMContext):
+    await state.update_data(answer_three=message.text)
+    await state.set_state(ChangeOrGiveQuizzes.append_prize)
+    await message.answer('❗Пожалуйста, введите количество lucky монет, которое получить клиент.\n\n'
+                         f'Важно, чтобы это было либо целлое, либо неполное число.')
+
+
+@router.message(StateFilter(ChangeOrGiveQuizzes.append_prize), F.text)
+async def append_prize(message: Message, state: FSMContext):
+    if message.text == int or float:
+        await state.update_data(prize=message.text)
+        data = await state.get_data()
+        name = data['name_quiz']
+        question_one = data['question_one']
+        question_two = data['question_two']
+        question_three = data['question_three']
+        answer_one = data['answer_one']
+        answer_two = data['answer_two']
+        answer_three = data['answer_three']
+        prize = data['prize']
+        await db.append_new_quizzes(name, question_one, answer_one, question_two, answer_two, question_three,
+                                    answer_three, prize)
+        await state.clear()
+        await db.info_quizzes_for_quizzes_json()
+        await message.answer(f'Пожалуйста, выберете нужную кнопку:\n\n'
+                             f'- Показать квизы (json-файл со всеми квизами)\n\n'
+                             f'- Редактировать (добавить, изменить, удалить квизы)\n\n'
+                             f'- Отправить всем (каждому клиенту будет отправлен выбранный вами квиз)',
+                             reply_markup=create_inline_kb(2, 'look_quizzes',
+                                                           'change_quizzes', 'give_quizzes_all',
+                                                           last_btn='back'))
+    else:
+        await message.answer(f'Введите число или неполное число')
+
+
+# Показать все квизы
+@router.callback_query(F.data == 'look_quizzes')
+async def quizzes_admin(callback_query: CallbackQuery):
+    await callback_query.message.delete()
+    file = FSInputFile('exchange_look_quizzes.json')
+    message_text = "JSON-файл для Вас ❤️"
+    await callback_query.bot.send_document(chat_id=callback_query.from_user.id, document=file,
+                                           caption=message_text)
+    await db.info_quizzes_for_quizzes_json()
+    await callback_query.message.answer(f'❗Пожалуйста, выберете нужную кнопку:\n\n'
+                                        f'- Показать квизы (json-файл со всеми квизами)\n\n'
+                                        f'- Редактировать (добавить, изменить, удалить квизы)\n\n'
+                                        f'- Отправить всем (каждому клиенту будет отправлен выбранный вами квиз)',
+                                        reply_markup=create_inline_kb(2, 'look_quizzes',
+                                                                      'change_quizzes', 'give_quizzes_all',
+                                                                      last_btn='back'))
+
+
+@router.callback_query(F.data == 'give_quizzes_all')
+async def send_quizzes(callback: CallbackQuery):
+    async with aiosqlite.connect('userdata.db') as conn:
+        ids = await conn.execute('SELECT user_id FROM users')
+        ids = await ids.fetchall()
+    for i in ids:
+        await callback.message.bot.send_message(chat_id=int(i[0]), text='❗Появился новый квиз! Вы можете решить его и получить вознаграждение❗', reply_markup=create_inline_kb(1,'Начать решать', 'Отказаться'))
+
+
+
+
 # Обработка кнопки "Связь"
 @router.callback_query(F.data == 'message')
 async def letter_from_admin(callback_query: CallbackQuery):
@@ -77,7 +234,7 @@ async def letter_from_admin(callback_query: CallbackQuery):
                                            f'- Отложенные сообщения (Здесь можно изменить, добавить или удалить '
                                            f'отложенные сообщения)',
                                            reply_markup=create_inline_kb(1, 'message_for_all',
-                                                                         'old_messages_change', last_btn='back'))
+                                                                         'old_messages_change', 'Отложенное сообщение', last_btn='back'))
 
 
 # Обработки кнопки отложенные сообщения
@@ -332,8 +489,9 @@ async def give_old_message_for_all_users(callback_query: CallbackQuery, state: F
     await callback_query.message.answer(f'❗Сообщение было успешно отправлено')
     await state.clear()
     await callback_query.message.answer(LEXICON_RU['admin_start'],
-                                reply_markup=create_inline_kb(2, 'coin_rate', 'Merch_Showcase',
-                                                              'clients', 'quizzes', 'message'))
+                         reply_markup=create_inline_kb(2, 'coin_rate', 'Merch_Showcase',
+                                                       'clients', 'quizzes', 'message', 'Сгенерировать QR',
+                                                       'Посмотреть рефералов'))
 
 
 # Обработка своего текста для всех клиентов
@@ -360,7 +518,8 @@ async def process_delivery_message_for_all_users(message: Message, state: FSMCon
     await state.clear()
     await message.answer(LEXICON_RU['admin_start'],
                          reply_markup=create_inline_kb(2, 'coin_rate', 'Merch_Showcase',
-                                                       'clients', 'quizzes', 'message'))
+                                                       'clients', 'quizzes', 'message', 'Сгенерировать QR',
+                                                       'Посмотреть рефералов'))
 
 
 # Показ курса
@@ -423,7 +582,8 @@ async def append_rate_to_rate_tabl(message: Message, state: FSMContext):
             await state.clear()
             await message.answer(LEXICON_RU['admin_start'],
                                  reply_markup=create_inline_kb(2, 'coin_rate', 'Merch_Showcase',
-                                                               'clients', 'quizzes', 'message'))
+                                                               'clients', 'quizzes', 'message', 'Сгенерировать QR',
+                                                               'Посмотреть рефералов'))
     except ValueError:
         await message.answer(f'Ошибка! Ввести можно только целое либо неполное число!')
 
@@ -431,8 +591,6 @@ async def append_rate_to_rate_tabl(message: Message, state: FSMContext):
 # Поиск пользователей
 @router.callback_query(F.data == 'clients')
 async def client_base(callback: CallbackQuery, state: FSMContext):
-    current_time = datetime.now().isoformat()
-    await db.info_user_for_user(current_time)
     await state.set_state(FindUsersForDB.waiting_choice_admin)
     await callback.message.edit_text(f'❗Пожалуйста выберете нужную кнопку❗\n\n'
                                      f'- Знаю id клиента (Нужно будет вбить id клиента, который можно узнать либо '
@@ -447,7 +605,25 @@ async def client_base(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(StateFilter(FindUsersForDB.waiting_choice_admin), F.data == 'base_user')
 async def show_base_user(callback: CallbackQuery, state: FSMContext):
     await state.clear()
-    file = FSInputFile("exchange_data.json")
+    async with aiosqlite.connect('userdata.db') as conn:
+        data = await conn.execute('SELECT * FROM users')
+        data = await data.fetchall()
+    exchange_data = []
+    for row in data:
+        exchange_data.append({
+            "id": row[0],
+            "username": row[1],
+            "nickname": row[2],
+            "Lucky": row[3],
+            "CashOnline": row[4],
+            "OtherCoins": row[5],
+            "Chips": row[6],
+            "referral": row[7],
+            "current_time": datetime.now().isoformat()
+        })
+    with open('all_users.json', 'w', encoding='utf-8') as json_file:
+        json.dump(exchange_data, json_file, ensure_ascii=False, indent=4)
+    file = FSInputFile("all_users.json")
     message_text = "JSON-файл для вас ❤️"
     # Отправляем JSON-файл как документ в ответ на инлайн запрос
     await callback.bot.send_document(chat_id=callback.from_user.id, document=file,
@@ -1132,10 +1308,10 @@ async def back_user_handler(callback: CallbackQuery, state: FSMContext):
     await state.update_data(user_id=user_id)
 @router.message(Command('scan'))
 async def scan_web_app(message: Message):
-    if str(message.from_user.id) != str(config.tg_bot.admin_id):
+    if message.from_user.id not in ast.literal_eval(config.tg_bot.admin_id):
         await message.answer('У вас нет прав использовать эту команду')
     else:
-        web_app_url = "https://192.168.0.105:8000/scan"
+        web_app_url = f"https://{config.tg_bot.ipv4}:8000/scan"
         builder = InlineKeyboardBuilder()
         builder.row(InlineKeyboardButton(
             text="Cканер",
@@ -1147,16 +1323,14 @@ class QRCodeCreate(StatesGroup):
     wait_for_count_lucky = State()
 @router.callback_query(F.data == 'Сгенерировать QR', StateFilter(None))
 async def type_qr(callback: CallbackQuery, state: FSMContext):
-    await callback.message.answer('Выберите какой тип QR код вы хотите создать', reply_markup=create_inline_kb(2, 'Бонус', 'Квиз'))
+    await callback.message.answer('Выберите какой тип QR код вы хотите создать', reply_markup=create_inline_kb(2, 'Бонус'))
     await state.set_state(QRCodeCreate.type_qr)
 
-@router.callback_query(F.data.in_(['Бонус', 'Квиз']), QRCodeCreate.type_qr)
+@router.callback_query(F.data.in_(['Бонус']), QRCodeCreate.type_qr)
 async def bonus_or_quiz(callback: CallbackQuery, state: FSMContext):
     if callback.data == 'Бонус':
         await callback.message.answer('Введите количество монет, которые вы хотите раздать бонусом')
         await state.set_state(QRCodeCreate.wait_for_count_lucky)
-    if callback.data == 'Квиз':
-        pass
 
 @router.message(F.text, QRCodeCreate.wait_for_count_lucky)
 async def count_coins(message: Message, state: FSMContext):
@@ -1164,6 +1338,241 @@ async def count_coins(message: Message, state: FSMContext):
     count = await state.get_data()
     await QRCode(message.from_user.id).qr_bonus(count['count'])
     await message.bot.send_photo(chat_id=message.from_user.id, photo=FSInputFile(f'qr_code_bonus.png'),
-                                          caption='Данный QR вам необходимо показать администратору, чтобы вам выдали фишки')
+                                          caption='Бонусный QR код сгенерирован.')
     os.remove(f'qr_code_bonus.png')
+
+class AddMerch(StatesGroup):
+    action = State()
+    name = State()
+    price = State()
+    image_path = State()
+
+@router.callback_query(F.data == 'Merch_Showcase')
+async def what_to_do_with_merch(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer('Вы хотите добавить продукт или посмотреть витрину?', reply_markup=create_inline_kb(1, 'Добавить продукт', 'Посмотреть'))
+    await state.set_state(AddMerch.action)
+
+page = 0
+@router.callback_query(F.data.in_(['Добавить продукт', 'Посмотреть']), AddMerch.action)
+async def action_choosed(callback: CallbackQuery, state: FSMContext):
+    global page
+    if callback.data == 'Добавить продукт':
+        await callback.message.answer('Введите наимнование нового товара')
+        await state.set_state(AddMerch.name)
+    if callback.data == 'Посмотреть':
+        async with aiosqlite.connect('userdata.db') as db:
+            products = await db.execute('SELECT * FROM merch')
+            products = await products.fetchall()
+        if products == []:
+            await callback.message.answer('Список товаров пуст')
+            await state.clear()
+        else:
+            await callback.message.bot.send_photo(chat_id=callback.from_user.id, photo=FSInputFile(products[page][3]), caption=f'<b>ID</b>: {products[page][0]}\n<b>Название</b>: {products[page][1]}\n<b>Цена</b>: {products[page][2]} <b>CashOnline</b>',
+                                                  reply_markup=create_inline_kb(1, 'Следующий товар', 'Редактировать', 'Удалить'))
+            await state.clear()
+
+@router.message(F.text, AddMerch.name)
+async def get_name(message: Message, state: FSMContext):
+    await message.answer('Введите цену товара')
+    await state.update_data(name = message.text)
+    await state.set_state(AddMerch.price)
+
+@router.message(F.text, AddMerch.price)
+async def get_price(message: Message, state: FSMContext):
+    await message.answer('Введите путь до изображения товара.\nPS для администратора: все фотографии находятся в папке merch. Путь указывается таким образом: <b>merch/название_фотографии.формат</b>')
+    await state.update_data(price = message.text)
+    await state.set_state(AddMerch.image_path)
+
+@router.message(F.text, AddMerch.image_path)
+async def image_path(message: Message, state: FSMContext):
+    await state.update_data(path = message.text)
+    await message.answer('Вы добавили новый товар на витрину')
+    data = await state.get_data()
+    async with aiosqlite.connect('userdata.db') as db:
+        await db.execute('INSERT INTO merch (name, price, image_path) VALUES (?, ?, ?)',
+                       (data['name'], float(data['price']), data['path']))
+        await db.commit()
+    await state.clear()
+
+@router.callback_query(F.data == 'Следующий товар')
+async def next_product(callback: CallbackQuery):
+    global page
+    page += 1
+    await callback.message.delete()
+    async with aiosqlite.connect('userdata.db') as db:
+        products = await db.execute('SELECT * FROM merch ORDER BY id')
+        products = await products.fetchall()
+    try:
+        await callback.message.bot.send_photo(chat_id=callback.from_user.id, photo=FSInputFile(products[page][3]),
+                                          caption=f'<b>ID</b>: {page + 1}\n<b>Название</b>: {products[page][1]}\n<b>Цена</b>: {products[page][2]} <b>CashOnline</b>',
+                                          reply_markup=create_inline_kb(1, 'Следующий товар', 'Редактировать',
+                                                                        'Удалить'))
+    except IndexError:
+        page = 0
+        await callback.message.bot.send_photo(chat_id=callback.from_user.id, photo=FSInputFile(products[page][3]),
+                                          caption=f'<b>ID</b>: {page + 1}\n<b>Название</b>: {products[page][1]}\n<b>Цена</b>: {products[page][2]} <b>CashOnline</b>',
+                                          reply_markup=create_inline_kb(1, 'Следующий товар', 'Редактировать',
+                                                                        'Удалить'))
+
+class EditProduct(StatesGroup):
+    choice = State()
+    name = State()
+    price = State()
+    path = State()
+@router.callback_query(F.data == 'Редактировать')
+async def edit_product(callback: CallbackQuery, state: FSMContext):
+    product_number = int(callback.message.caption.split('\n')[0].split(' ')[1]) - 1
+    await state.update_data(product_number = product_number)
+    await callback.message.answer('Выберите что хотите отредактировать', reply_markup=create_inline_kb(1, f'Изменить название №{str(product_number + 1)}', f'Изменить цену №{str(product_number + 1)}', f'Изменить фото №{str(product_number + 1)}', 'Отменить'))
+    await state.set_state(EditProduct.choice)
+
+@router.callback_query(F.data, EditProduct.choice)
+async def choice(callback: CallbackQuery, state: FSMContext):
+    if callback.data.__contains__('Изменить название'):
+        await callback.message.answer('Введите новое название для товара')
+        await state.set_state(EditProduct.name)
+    if callback.data.__contains__('Изменить цену'):
+        await callback.message.answer('Введите новую цену для товара')
+        await state.set_state(EditProduct.price)
+    if callback.data.__contains__('Изменить фото'):
+        await callback.message.answer('Введите новый путь для фотографии товара')
+        await state.set_state(EditProduct.path)
+    if callback.data == 'Отменить':
+        await state.clear()
+
+@router.message(F.text, StateFilter(*[EditProduct.name, EditProduct.price, EditProduct.path]))
+async def editing(message: Message, state: FSMContext):
+    current_state = await state.get_state()
+    data = await state.get_data()
+    if current_state == EditProduct.name:
+        async with aiosqlite.connect('userdata.db') as db:
+            products = await db.execute('SELECT * FROM merch ORDER BY id')
+            products = await products.fetchall()
+            choosed_product = products[int(data['product_number'])]
+            await db.execute('UPDATE merch SET name = ? WHERE id = ?', (message.text, choosed_product[0]))
+            await db.commit()
+        await message.answer(f'Вы обновили название товара на {message.text}')
+    if current_state == EditProduct.price:
+        async with aiosqlite.connect('userdata.db') as db:
+            products = await db.execute('SELECT * FROM merch ORDER BY id')
+            products = await products.fetchall()
+            choosed_product = products[int(data['product_number'])]
+            await db.execute('UPDATE merch SET price = ? WHERE id = ?', (message.text, choosed_product[0]))
+            await db.commit()
+        await message.answer(f'Вы обновили цену товара на {message.text}')
+    if current_state == EditProduct.path:
+        async with aiosqlite.connect('userdata.db') as db:
+            products = await db.execute('SELECT * FROM merch ORDER BY id')
+            products = await products.fetchall()
+            choosed_product = products[int(data['product_number'])]
+            await db.execute('UPDATE merch SET patg = ? WHERE id = ?', (message.text, choosed_product[0]))
+            await db.commit()
+        await message.answer(f'Вы обновили цену товара на {message.text}')
+
+@router.callback_query(F.data == 'Удалить')
+async def delete_product(callback: CallbackQuery):
+    product_number = int(callback.message.caption.split('\n')[0].split(' ')[1]) - 1
+    async with aiosqlite.connect('userdata.db') as db:
+        products = await db.execute('SELECT * FROM merch ORDER BY id')
+        products = await products.fetchall()
+        choosed_product = products[product_number]
+        await db.execute('DELETE FROM merch WHERE id = ?', (choosed_product[0],))
+        await db.commit()
+    await callback.message.delete()
+    await callback.message.answer(f'Вы удалили товар с id {product_number + 1}')
+
+class CreateTask(StatesGroup):
+    channel = State()
+    bonus = State()
+@router.callback_query(F.data == 'Создать задание', StateFilter(None))
+async def create_task(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer('Введите ссылку на канал')
+    await state.set_state(CreateTask.channel)
+
+@router.message(F.text, CreateTask.channel)
+async def het_channel(message: Message, state: FSMContext):
+    await state.update_data(url = message.text)
+    await message.answer('Введите вознаграждение')
+    await state.set_state(CreateTask.bonus)
+
+
+@router.message(F.text, CreateTask.bonus)
+async def send_task(message: Message, state: FSMContext):
+    await state.update_data(bonus = message.text)
+    data = await state.get_data()
+    async with aiosqlite.connect('userdata.db') as conn:
+        ids = await conn.execute('SELECT user_id FROM users')
+        ids = await ids.fetchall()
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text='Проверить'), InlineKeyboardButton(text = 'Не хочу'))
+    for i in ids:
+        await message.bot.send_message(chat_id = int(i[0]), text=f'Подпишитесь на канал и получите бонус {data["bonus"]} LuckyCoins\n'
+                                                                 f'{data["url"]}',
+                                       reply_markup=builder.as_markup())
+    await state.clear()
+
+
+class IntervalMessage(StatesGroup):
+    message = State()
+    interval = State()
+
+@router.callback_query(F.data == 'Отложенное сообщение', StateFilter(None))
+async def interval_message(callback: CallbackQuery, state: FSMContext):
+    await callback.message.answer('Введите текст сообщения')
+    await state.set_state(IntervalMessage.message)
+
+@router.message(F.text, IntervalMessage.message)
+async def ask_interval(message: Message, state: FSMContext):
+    await state.update_data(message = message.text)
+    await message.answer('Введите интервал в минутах, через который вы хотите, чтоб сообщение отправилось')
+    await state.set_state(IntervalMessage.interval)
+
+
+async def message_interval(message, interval, bot):
+    await asyncio.sleep(interval)
+    async with aiosqlite.connect('userdata.db') as conn:
+        ids = await conn.execute('SELECT user_id FROM users')
+        ids = await ids.fetchall()
+    for i in ids:
+        await bot.send_message(chat_id=int(i[0]), text=message)
+
+# В вашем обработчике сообщений:
+@router.message(F.text, IntervalMessage.interval)
+async def get_interval(message: Message, state: FSMContext, bot: Bot):
+    await state.update_data(interval=message.text)
+    data = await state.get_data()
+    interval_message_text = data['message']
+
+    try:
+        interval = float(data['interval'])  # Преобразование строки в число здесь
+        task = asyncio.create_task(message_interval(interval_message_text, interval*60, bot))
+        # Перевод минут в секунды для функции asyncio.sleep
+        await message.answer(f'Отправка запланирована через {interval} минут(ы)')
+    except ValueError:
+        await message.answer('Введено неверное значение. Повторите процедуру снова.')
+    await state.clear()
+
+
+@router.callback_query(F.data == 'Посмотреть рефералов')
+async def get_referers(callback: CallbackQuery):
+    referer_referal = {}
+    async with aiosqlite.connect('userdata.db') as conn:
+        all_ids = await conn.execute('SELECT user_id FROM users')
+        all_ids = await all_ids.fetchall()
+        for i in all_ids:
+            referals = await conn.execute('SELECT user_id FROM users WHERE referral = ?', (i[0], ))
+            referals = await referals.fetchall()
+            referals = [str(i[0]) for i in referals]
+            if referals != []:
+                referer_referal[str(i[0])] = str(referals)
+            else:
+                continue
+    try:
+        text = ['<b>Реферер - рефералы</b>\n\n']
+        for i in referer_referal.keys():
+            text.append(f'{i} - {", ".join(ast.literal_eval(referer_referal[i]))}\n')
+        await callback.message.answer(''.join(text))
+    except Exception:
+        await callback.message.answer('Рефереров пока что нет.')
+
 

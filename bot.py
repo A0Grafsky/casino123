@@ -14,6 +14,9 @@ async def start_bot(bot: Bot):
     await db.create_admin()
     await db.create_rate_coins()
     await db.create_old_message()
+    await db.create_merch()
+    await db.crete_quizzes()
+    await db.create_task_table()
 
 
 # Функция конфигурирования и запуска бота
@@ -37,7 +40,6 @@ async def main():
     bot = Bot(token=config.tg_bot.token,
               parse_mode='HTML')
     dp = Dispatcher()
-
     # Настраиваем главное меню
     await set_main_meny(bot)
 
